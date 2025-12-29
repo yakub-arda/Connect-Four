@@ -1,184 +1,194 @@
 import math
-from utility import check_direction, ROWS, COLS, RED, YELLOW
+from utility import ROWS, COLS, RED, YELLOW, EMPTY
+
+WIN_SCORE = 100000
+
+# Transposition table for memoization
+transposition_table = {}
+
+
+def board_to_key(board):
+    """Convert board to a hashable key for caching."""
+    return tuple(tuple(row) for row in board.grid)
+
+
+def get_playable_row(board, col):
+    """Find the row where a piece would land in the given column."""
+    for r in range(ROWS - 1, -1, -1):
+        if board.grid[r][col] == EMPTY:
+            return r
+    return None
+
+
+def find_windows_from_cell(r, c):
+    """Find all 4-cell windows that include the given cell."""
+    windows = []
+
+    directions = [
+        (0, 1),  # horizontal
+        (1, 0),  # vertical
+        (1, 1),  # diagonal \
+        (1, -1),  # diagonal /
+    ]
+
+    for dr, dc in directions:
+        for offset in range(-3, 1):
+            window = []
+            for i in range(4):
+                rr = r + (offset + i) * dr
+                cc = c + (offset + i) * dc
+                if 0 <= rr < ROWS and 0 <= cc < COLS:
+                    window.append((rr, cc))
+                else:
+                    break
+            if len(window) == 4:
+                windows.append(window)
+
+    return windows
 
 
 def evaluate(board):
     """
-    Evaluation function: Returns a score for the current board position.
-
-    Positive score = good for YELLOW (maximizing player)
-    Negative score = good for RED (minimizing player)
-
-    The function counts sequences of pieces to determine board strength:
-    - 4 in a row = win condition (very high score)
-    - 3 in a row with 1 empty = strong position
-    - 2 in a row with 2 empty = developing position
+    Original evaluation function - checks windows from playable positions.
     """
-    score = 0
-
-    # Check all possible 4-cell windows on the board
-    # Horizontal windows (check each row)
-    for r in range(ROWS):
-        for c in range(COLS - 3):  # Only check where 4 cells fit horizontally
-            window = [board.grid[r][c], board.grid[r][c + 1], board.grid[r][c + 2], board.grid[r][c + 3]]
-            score += evaluate_window(window)
-
-    # Vertical windows (check each column)
-    for c in range(COLS):
-        for r in range(ROWS - 3):  # Only check where 4 cells fit vertically
-            window = [board.grid[r][c], board.grid[r + 1][c], board.grid[r + 2][c], board.grid[r + 3][c]]
-            score += evaluate_window(window)
-
-    # Diagonal windows (top-left to bottom-right)
-    for r in range(ROWS - 3):
-        for c in range(COLS - 3):
-            window = [board.grid[r][c], board.grid[r + 1][c + 1], board.grid[r + 2][c + 2], board.grid[r + 3][c + 3]]
-            score += evaluate_window(window)
-
-    # Diagonal windows (top-right to bottom-left)
-    for r in range(ROWS - 3):
-        for c in range(3, COLS):
-            window = [board.grid[r][c], board.grid[r + 1][c - 1], board.grid[r + 2][c - 2], board.grid[r + 3][c - 3]]
-            score += evaluate_window(window)
-
-    return score
-
-
-def evaluate_window(window):
-    """
-    Evaluates a single 4-cell window and returns its score.
-
-    Scoring system:
-    - 4 YELLOW pieces = +100 (YELLOW wins)
-    - 3 YELLOW + 1 empty = +5 (strong offensive position)
-    - 2 YELLOW + 2 empty = +2 (developing position)
-
-    - 4 RED pieces = -100 (RED wins)
-    - 3 RED + 1 empty = -5 (strong offensive position)
-    - 2 RED + 2 empty = -2 (developing position)
-
-    - Mixed pieces or blocked = 0 (no value)
-    """
-    score = 0
-
-    # Count how many of each type in this window
-    yellow_count = window.count(YELLOW)  # Count YELLOW pieces
-    red_count = window.count(RED)  # Count RED pieces
-    empty_count = window.count(0)  # Count empty spaces
-
-    # Evaluate for YELLOW (positive scores)
-    if yellow_count == 4:
-        score += 100  # Four in a row - winning position
-    elif yellow_count == 3 and empty_count == 1:
-        score += 5  # Three in a row with space to complete - very good
-    elif yellow_count == 2 and empty_count == 2:
-        score += 2  # Two in a row with space to develop - good
-
-    # Evaluate for RED (negative scores)
-    if red_count == 4:
-        score -= 100  # Four in a row - winning position
-    elif red_count == 3 and empty_count == 1:
-        score -= 5  # Three in a row with space to complete - very good
-    elif red_count == 2 and empty_count == 2:
-        score -= 2  # Two in a row with space to develop - good
-
-    # If window has both colors, it's blocked and worthless (score stays 0)
-
-    return score
-
-
-def minimax(board, depth, maximizing):
-    """
-    Minimax algorithm: Recursively searches the game tree to find the best move.
-
-    Parameters:
-    - board: Current game state
-    - depth: How many moves ahead to look (search depth)
-    - maximizing: True if YELLOW's turn (wants high score), False if RED's turn (wants low score)
-
-    Returns: The best score achievable from this position
-    """
-
-    # Base case 1: Check if YELLOW won
     if board.check_win(YELLOW):
-        return 10000 + depth  # Return high score (good for YELLOW). Add depth to prefer faster wins
-
-    # Base case 2: Check if RED won
+        return WIN_SCORE
     if board.check_win(RED):
-        return -10000 - depth  # Return low score (good for RED). Subtract depth to prefer faster wins
+        return -WIN_SCORE
 
-    # Base case 3: Get all valid moves (columns that aren't full)
+    score = 0
+
+    for col in range(COLS):
+        row = get_playable_row(board, col)
+        if row is None:
+            continue
+
+        windows = find_windows_from_cell(row, col)
+
+        for window in windows:
+            vals = [board.grid[r][c] for r, c in window]
+
+            y = vals.count(YELLOW)
+            r = vals.count(RED)
+            e = vals.count(EMPTY)
+
+            # mixed window → useless
+            if y > 0 and r > 0:
+                continue
+
+            # 1 & 2 — Win / Block
+            if e == 1:
+                if y == 3:
+                    score += 20000
+                elif r == 3:
+                    score -= 10000
+
+            # 3 — Attack (2 → 3)
+            elif e == 2:
+                if y == 2:
+                    score += 2000
+                elif r == 2:
+                    score -= 1000
+
+            # 4 — Expand (1 → 2)
+            elif e == 3:
+                if y == 1:
+                    score += 100
+                elif r == 1:
+                    score -= 50
+
+            # 5 — Search
+            elif e == 4:
+                score += 5
+
+    return score
+
+
+def minimax(board, depth, maximizingPlayer):
+    """
+    Minimax with transposition table optimization.
+    Caches already-computed positions for speed.
+    """
+    # Check for terminal states
+    if board.check_win(YELLOW):
+        return WIN_SCORE - depth  # FIX: Prefer faster wins
+    if board.check_win(RED):
+        return -WIN_SCORE + depth  # FIX: Prefer slower losses
+
     moves = board.valid_moves()
 
-    # If we've reached the depth limit or no moves left, evaluate the position
-    if depth == 0 or not moves:
-        return evaluate(board)  # Return heuristic score of current position
+    if not moves:
+        return 0  # Draw
 
-    # Recursive case: Try all possible moves
-    if maximizing:
-        # YELLOW's turn: wants to maximize the score
-        best_score = -math.inf  # Start with worst possible score for maximizer
+    if depth == 0:
+        return evaluate(board)
 
-        # Try each valid column
+    # Check transposition table
+    board_key = board_to_key(board)
+    cache_key = (board_key, depth, maximizingPlayer)
+
+    if cache_key in transposition_table:
+        return transposition_table[cache_key]
+
+    # Recursive minimax
+    if maximizingPlayer:
+        value = -math.inf
         for col in moves:
-            board.make_move(col, YELLOW)  # Make the move
-            score = minimax(board, depth - 1, False)  # Recursively evaluate (now RED's turn)
-            board.undo_move(col)  # Undo the move to try next option
-            best_score = max(best_score, score)  # Keep the highest score found
+            board.make_move(col, YELLOW)
+            value = max(value, minimax(board, depth - 1, False))
+            board.undo_move(col)
 
-        return best_score  # Return the best score YELLOW can achieve
-
+        transposition_table[cache_key] = value
+        return value
     else:
-        # RED's turn: wants to minimize the score
-        best_score = math.inf  # Start with worst possible score for minimizer
-
-        # Try each valid column
+        value = math.inf
         for col in moves:
-            board.make_move(col, RED)  # Make the move
-            score = minimax(board, depth - 1, True)  # Recursively evaluate (now YELLOW's turn)
-            board.undo_move(col)  # Undo the move to try next option
-            best_score = min(best_score, score)  # Keep the lowest score found
+            board.make_move(col, RED)
+            value = min(value, minimax(board, depth - 1, True))
+            board.undo_move(col)
 
-        return best_score  # Return the best score RED can achieve
+        transposition_table[cache_key] = value
+        return value
 
 
 def best_move(board, depth, player):
     """
-    Finds the best column to play for the given player.
-
-    This function calls minimax for each possible move and picks the one
-    with the best score for the current player.
+    Find the best move for the given player.
     """
+    valid_moves = board.valid_moves()
+
     if player == YELLOW:
-        # YELLOW wants to maximize score
-        best_score = -math.inf  # Start with worst possible score
-        best_col = None
+        best_score = -math.inf
+        best_col = valid_moves[0]  # Always have a default
 
-        # Try each valid column
-        for col in board.valid_moves():
-            board.make_move(col, YELLOW)  # Try this move
-            score = minimax(board, depth - 1, False)  # See what score it leads to
-            board.undo_move(col)  # Undo the move
+        for col in valid_moves:
+            board.make_move(col, YELLOW)
+            score = minimax(board, depth - 1, False)
+            board.undo_move(col)
 
-            # If this move is better than previous best, remember it
             if score > best_score:
                 best_score = score
                 best_col = col
 
+        return best_col
+
     else:  # RED
-        # RED wants to minimize score
-        best_score = math.inf  # Start with worst possible score
-        best_col = None
+        best_score = math.inf
+        best_col = valid_moves[0]  # Always have a default
 
-        # Try each valid column
-        for col in board.valid_moves():
-            board.make_move(col, RED)  # Try this move
-            score = minimax(board, depth - 1, True)  # See what score it leads to
-            board.undo_move(col)  # Undo the move
+        for col in valid_moves:
+            board.make_move(col, RED)
+            score = minimax(board, depth - 1, True)
+            board.undo_move(col)
 
-            # If this move is better than previous best, remember it
             if score < best_score:
                 best_score = score
                 best_col = col
 
-    return best_col  # Return the column number of the best move
+        return best_col
+
+
+def clear_cache():
+    """Clear the transposition table (call between games)."""
+    global transposition_table
+    transposition_table = {}

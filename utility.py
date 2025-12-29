@@ -10,8 +10,8 @@ EMPTY = 0
 """ AI """
 AI_PLAYER1 = -1
 AI_PLAYER2 = 1
-AI_PLAYER1_DEPTH = 4
-AI_PLAYER2_DEPTH = 4
+AI_PLAYER1_DEPTH = 10
+AI_PLAYER2_DEPTH = 2
 
 def check_direction(board, start_r, start_c, dr, dc, player, rows, cols):
     """Count consecutive pieces in a given direction"""

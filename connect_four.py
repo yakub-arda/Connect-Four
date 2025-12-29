@@ -24,6 +24,30 @@ class ConnectFour:
         self.current_state_index = 0
         self.viewing_history = False
 
+    def show_tree_visualization(self):
+        """Open tree visualization in a separate window"""
+        from tree_visualizer import TreeVisualizer
+
+        # Determine the board state being viewed
+        board_state = self.history[self.current_state_index]
+
+        # FIX: Check whose turn it was at this historical point
+        # Index 0 = Start (Red's turn), Index 1 = After 1 move (Yellow's turn)
+        if self.current_state_index % 2 == 0:
+            eval_player = RED
+            depth = AI_PLAYER1_DEPTH
+        else:
+            eval_player = YELLOW
+            depth = AI_PLAYER2_DEPTH
+
+        # Pass board, depth (6), and correct player
+        visualizer = TreeVisualizer(board_state, depth, eval_player)
+        visualizer.run()
+
+        # Restore main window
+        self.screen = pygame.display.set_mode((500, 550))
+        pygame.display.set_caption("5x4 Connect Four")
+
     def run(self):
         clock = pygame.time.Clock()
 
@@ -39,12 +63,15 @@ class ConnectFour:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = event.pos
                     # Check if previous button clicked (left side)
-                    if 50 <= mouse_x <= 200 and 460 <= mouse_y <= 510:
+                    if 50 <= mouse_x <= 150 and 460 <= mouse_y <= 510:
                         if self.current_state_index > 0:
                             self.current_state_index -= 1
                             self.viewing_history = True
+                    # Check if show button clicked (middle)
+                    elif 200 <= mouse_x <= 300 and 460 <= mouse_y <= 510:
+                        self.show_tree_visualization()
                     # Check if next button clicked (right side)
-                    elif 300 <= mouse_x <= 450 and 460 <= mouse_y <= 510:
+                    elif 350 <= mouse_x <= 450 and 460 <= mouse_y <= 510:
                         if self.current_state_index < len(self.history) - 1:
                             self.current_state_index += 1
                             self.viewing_history = self.current_state_index < len(self.history) - 1
@@ -104,21 +131,29 @@ class ConnectFour:
                 reset_rect = reset_text.get_rect(center=(250, 445))
                 self.screen.blit(reset_text, reset_rect)
 
-            # Draw Previous/Next buttons
+            # Draw Previous/Show/Next buttons
             # Previous button
             prev_color = (70, 70, 70) if self.current_state_index > 0 else (40, 40, 40)
-            pygame.draw.rect(self.screen, prev_color, (50, 460, 150, 50))
-            pygame.draw.rect(self.screen, (150, 150, 150), (50, 460, 150, 50), 2)
-            prev_text = self.small_font.render("< Previous", True, (200, 200, 200))
-            prev_rect = prev_text.get_rect(center=(125, 485))
+            pygame.draw.rect(self.screen, prev_color, (50, 460, 100, 50))
+            pygame.draw.rect(self.screen, (150, 150, 150), (50, 460, 100, 50), 2)
+            prev_text = self.small_font.render("< Prev", True, (200, 200, 200))
+            prev_rect = prev_text.get_rect(center=(100, 485))
             self.screen.blit(prev_text, prev_rect)
+
+            # Show button (middle)
+            show_color = (50, 100, 150)
+            pygame.draw.rect(self.screen, show_color, (200, 460, 100, 50))
+            pygame.draw.rect(self.screen, (150, 150, 150), (200, 460, 100, 50), 2)
+            show_text = self.small_font.render("Show", True, (200, 200, 200))
+            show_rect = show_text.get_rect(center=(250, 485))
+            self.screen.blit(show_text, show_rect)
 
             # Next button
             next_color = (70, 70, 70) if self.current_state_index < len(self.history) - 1 else (40, 40, 40)
-            pygame.draw.rect(self.screen, next_color, (300, 460, 150, 50))
-            pygame.draw.rect(self.screen, (150, 150, 150), (300, 460, 150, 50), 2)
+            pygame.draw.rect(self.screen, next_color, (350, 460, 100, 50))
+            pygame.draw.rect(self.screen, (150, 150, 150), (350, 460, 100, 50), 2)
             next_text = self.small_font.render("Next >", True, (200, 200, 200))
-            next_rect = next_text.get_rect(center=(375, 485))
+            next_rect = next_text.get_rect(center=(400, 485))
             self.screen.blit(next_text, next_rect)
 
             # Show move counter
