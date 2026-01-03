@@ -18,15 +18,12 @@ class TreeNode:
         self.children = None
         self.is_terminal = False
 
-        # Terminal check
-        if board.check_win(YELLOW) or board.check_win(RED) or depth >= max_depth or not board.valid_moves():
+        if board.check_win(RED) or board.check_win(YELLOW) or depth >= max_depth or not board.valid_moves():
             self.is_terminal = True
             self.score = evaluate(board)
         else:
-            # GENUINE EVALUATION: Use the actual remaining depth from the AI's perspective
             remaining_depth = max_depth - depth
-            # Note: player == YELLOW determines if we are maximizing
-            self.score = minimax(self.board, remaining_depth, player == YELLOW)
+            self.score = minimax(self.board, remaining_depth, player == RED)
 
     def load_children(self):
         """Builds children on demand to save memory and prevent crashes"""
@@ -38,7 +35,7 @@ class TreeNode:
             return self.children
 
         self.children = []
-        next_player = YELLOW if self.player == RED else RED
+        next_player = RED if self.player == YELLOW else YELLOW
         for col in self.board.valid_moves():
             self.board.make_move(col, self.player)
             child = TreeNode(self.board, self.depth + 1, next_player, col, self, self.max_depth)
@@ -67,7 +64,6 @@ class TreeVisualizer:
         self.font = pygame.font.Font(None, 24)
         self.small_font = pygame.font.Font(None, 18)
 
-        # Build root with the correct starting player and full depth
         self.root = TreeNode(root_board, 0, starting_player, max_depth=depth)
         self.current_node = self.root
 
@@ -111,15 +107,13 @@ class TreeVisualizer:
 
             self.screen.fill((25, 25, 25))
 
-            # CURRENT NODE SECTION
             board_x, board_y = 50, 100
             self.draw_board(self.current_node.board, board_x, board_y, 200)
             self.screen.blit(self.font.render("CURRENT NODE", True, (255, 255, 255)), (board_x + 40, 60))
 
-            # INFO LABELS
             info_x, info_y = board_x + 220, board_y + 20
             p_name = 'RED' if self.current_node.player == RED else 'YELLOW'
-            strategy = "(Maximizing)" if self.current_node.player == YELLOW else "(Minimizing)"
+            strategy = "(Maximizing)" if self.current_node.player == RED else "(Minimizing)"
             p_color = (255, 100, 100) if self.current_node.player == RED else (255, 215, 0)
 
             self.screen.blit(self.font.render(f"Depth: {self.current_node.depth}", True, (200, 200, 200)),
@@ -127,19 +121,17 @@ class TreeVisualizer:
             self.screen.blit(self.font.render(f"Player: {p_name}", True, p_color), (info_x, info_y + 30))
             self.screen.blit(self.small_font.render(strategy, True, (150, 150, 150)), (info_x + 140, info_y + 35))
 
-            # Evaluation color logic
             score = self.current_node.score
             eval_color = (200, 200, 200)
-            if (self.current_node.player == YELLOW and score > 0) or (self.current_node.player == RED and score < 0):
+            if (self.current_node.player == RED and score > 0) or (self.current_node.player == YELLOW and score < 0):
                 eval_color = (100, 255, 100)
-            elif (self.current_node.player == YELLOW and score < 0) or (self.current_node.player == RED and score > 0):
+            elif (self.current_node.player == RED and score < 0) or (self.current_node.player == YELLOW and score > 0):
                 eval_color = (255, 100, 100)
 
             self.screen.blit(self.font.render(f"Evaluation: {score}", True, eval_color), (info_x, info_y + 60))
-            status_text = "TERMINAL (Leaf)" if self.current_node.is_terminal else "Non-terminal"
+            status_text = "Leaf Node" if self.current_node.is_terminal else "Child Node"
             self.screen.blit(self.font.render(f"Status: {status_text}", True, (100, 200, 255)), (info_x, info_y + 90))
 
-            # PARENT SECTION
             if self.current_node.parent:
                 px, py = board_x + 600, board_y
                 self.screen.blit(self.font.render("PARENT", True, (100, 150, 255)), (px + 60, py - 25))
@@ -149,7 +141,6 @@ class TreeVisualizer:
                     self.small_font.render(f"Eval: {self.current_node.parent.score}", True, (100, 255, 100)),
                     (px + 160, py + 60))
 
-            # CHILDREN SECTION
             children = self.current_node.load_children()
             if children:
                 cy = board_y + 250
@@ -164,7 +155,6 @@ class TreeVisualizer:
                     self.draw_board(child.board, cx, c_y, 110)
                     draw_arrow(self.screen, (255, 150, 100), (board_x + 100, board_y + 165), (cx + 25, c_y - 55), 3)
 
-                    # Column and Key Labels
                     self.screen.blit(self.font.render(f"Col {child.move_col + 1}", True, (255, 255, 255)),
                                      (cx + 25, c_y - 50))
                     self.screen.blit(self.small_font.render(f"Press {i + 1}", True, (150, 150, 255)),
@@ -172,7 +162,6 @@ class TreeVisualizer:
                     self.screen.blit(self.small_font.render(f"Eval: {child.score}", True, (255, 255, 255)),
                                      (cx + 10, c_y + 120))
 
-            # CONTROLS BAR (BOTTOM)
             pygame.draw.rect(self.screen, (40, 40, 40), (0, 540, 1000, 60))
             pygame.draw.line(self.screen, (100, 100, 100), (0, 540), (1000, 540), 2)
             self.screen.blit(self.font.render("CONTROLS:", True, (255, 255, 255)), (20, 550))

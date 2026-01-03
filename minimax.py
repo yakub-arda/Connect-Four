@@ -1,9 +1,8 @@
 import math
 from utility import ROWS, COLS, RED, YELLOW, EMPTY
 
-WIN_SCORE = 100000
+WIN_SCORE = 10000
 
-# Transposition table for memoization
 transposition_table = {}
 
 
@@ -12,157 +11,112 @@ def board_to_key(board):
     return tuple(tuple(row) for row in board.grid)
 
 
-def get_playable_row(board, col):
-    """Find the row where a piece would land in the given column."""
-    for r in range(ROWS - 1, -1, -1):
-        if board.grid[r][col] == EMPTY:
-            return r
-    return None
-
-
-def find_windows_from_cell(r, c):
-    """Find all 4-cell windows that include the given cell."""
-    windows = []
-
-    directions = [
-        (0, 1),  # horizontal
-        (1, 0),  # vertical
-        (1, 1),  # diagonal \
-        (1, -1),  # diagonal /
-    ]
-
-    for dr, dc in directions:
-        for offset in range(-3, 1):
-            window = []
-            for i in range(4):
-                rr = r + (offset + i) * dr
-                cc = c + (offset + i) * dc
-                if 0 <= rr < ROWS and 0 <= cc < COLS:
-                    window.append((rr, cc))
-                else:
-                    break
-            if len(window) == 4:
-                windows.append(window)
-
-    return windows
-
-
-def evaluate(board):
-    """
-    Original evaluation function - checks windows from playable positions.
-    """
-    if board.check_win(YELLOW):
-        return WIN_SCORE
-    if board.check_win(RED):
-        return -WIN_SCORE
-
+def evaluate_window(window, piece):
     score = 0
+    opponent = RED if piece == YELLOW else YELLOW
 
-    for col in range(COLS):
-        row = get_playable_row(board, col)
-        if row is None:
-            continue
+    if window.count(piece) == 3 and window.count(EMPTY) == 1:
+        score += 400
+    elif window.count(piece) == 2 and window.count(EMPTY) == 2:
+        score += 20
+    elif window.count(piece) == 1 and window.count(EMPTY) == 3:
+        score += 1
 
-        windows = find_windows_from_cell(row, col)
-
-        for window in windows:
-            vals = [board.grid[r][c] for r, c in window]
-
-            y = vals.count(YELLOW)
-            r = vals.count(RED)
-            e = vals.count(EMPTY)
-
-            # mixed window → useless
-            if y > 0 and r > 0:
-                continue
-
-            # 1 & 2 — Win / Block
-            if e == 1:
-                if y == 3:
-                    score += 20000
-                elif r == 3:
-                    score -= 10000
-
-            # 3 — Attack (2 → 3)
-            elif e == 2:
-                if y == 2:
-                    score += 2000
-                elif r == 2:
-                    score -= 1000
-
-            # 4 — Expand (1 → 2)
-            elif e == 3:
-                if y == 1:
-                    score += 100
-                elif r == 1:
-                    score -= 50
-
-            # 5 — Search
-            elif e == 4:
-                score += 5
+    if window.count(opponent) == 3 and window.count(EMPTY) == 1:
+        score -= 350
 
     return score
 
 
-def minimax(board, depth, maximizingPlayer):
+def evaluate(board):
+    if board.check_win(RED):
+        return WIN_SCORE
+    elif board.check_win(YELLOW):
+        return -WIN_SCORE
+    elif board.is_full():
+        return 0
+
+    score = 0
+
+    for r in range(ROWS):
+        row_array = [board.grid[r][c] for c in range(COLS)]
+        for c in range(COLS - 3):
+            window = row_array[c:c + 4]
+            score += evaluate_window(window, RED)
+
+    for c in range(COLS):
+        col_array = [board.grid[r][c] for r in range(ROWS)]
+        for r in range(ROWS - 3):
+            window = col_array[r:r + 4]
+            score += evaluate_window(window, RED)
+
+    for r in range(3, ROWS):
+        for c in range(COLS - 3):
+            window = [board.grid[r - i][c + i] for i in range(4)]
+            score += evaluate_window(window, RED)
+
+    for r in range(3, ROWS):
+        for c in range(3, COLS):
+            window = [board.grid[r - i][c - i] for i in range(4)]
+            score += evaluate_window(window, RED)
+
+    return score
+
+
+def minimax(board, depth, maximizing_player):
     """
     Minimax with transposition table optimization.
-    Caches already-computed positions for speed.
     """
-    # Check for terminal states
-    if board.check_win(YELLOW):
-        return WIN_SCORE - depth  # FIX: Prefer faster wins
-    if board.check_win(RED):
-        return -WIN_SCORE + depth  # FIX: Prefer slower losses
-
-    moves = board.valid_moves()
-
-    if not moves:
-        return 0  # Draw
+    if board.check_win(RED) or board.check_win(YELLOW) or board.is_full():
+        return evaluate(board)
 
     if depth == 0:
         return evaluate(board)
 
-    # Check transposition table
     board_key = board_to_key(board)
-    cache_key = (board_key, depth, maximizingPlayer)
+    cache_key = (board_key, depth, maximizing_player)
 
     if cache_key in transposition_table:
         return transposition_table[cache_key]
 
-    # Recursive minimax
-    if maximizingPlayer:
-        value = -math.inf
-        for col in moves:
-            board.make_move(col, YELLOW)
-            value = max(value, minimax(board, depth - 1, False))
-            board.undo_move(col)
-
-        transposition_table[cache_key] = value
-        return value
-    else:
-        value = math.inf
-        for col in moves:
+    if maximizing_player:
+        max_eval = -math.inf
+        for col in board.valid_moves():
             board.make_move(col, RED)
-            value = min(value, minimax(board, depth - 1, True))
+            eval = minimax(board, depth - 1, False)
             board.undo_move(col)
+            max_eval = max(max_eval, eval)
 
-        transposition_table[cache_key] = value
-        return value
+        transposition_table[cache_key] = max_eval
+        return max_eval
+    else:
+        min_eval = math.inf
+        for col in board.valid_moves():
+            board.make_move(col, YELLOW)
+            eval = minimax(board, depth - 1, True)
+            board.undo_move(col)
+            min_eval = min(min_eval, eval)
+
+        transposition_table[cache_key] = min_eval
+        return min_eval
 
 
 def best_move(board, depth, player):
     """
     Find the best move for the given player.
+    Prioritizes center columns when scores are equal: 2, 1, 3, 0, 4
     """
     valid_moves = board.valid_moves()
+    column_priority = [2, 1, 3, 0, 4]
 
-    if player == YELLOW:
+    sorted_moves = [col for col in column_priority if col in valid_moves]
+
+    if player == RED:
         best_score = -math.inf
-        best_col = valid_moves[0]  # Always have a default
+        best_col = sorted_moves[0]
 
-        for col in valid_moves:
-            board.make_move(col, YELLOW)
+        for col in sorted_moves:
+            board.make_move(col, RED)
             score = minimax(board, depth - 1, False)
             board.undo_move(col)
 
@@ -172,12 +126,12 @@ def best_move(board, depth, player):
 
         return best_col
 
-    else:  # RED
+    else:
         best_score = math.inf
-        best_col = valid_moves[0]  # Always have a default
+        best_col = sorted_moves[0]
 
-        for col in valid_moves:
-            board.make_move(col, RED)
+        for col in sorted_moves:
+            board.make_move(col, YELLOW)
             score = minimax(board, depth - 1, True)
             board.undo_move(col)
 

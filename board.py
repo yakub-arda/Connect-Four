@@ -2,7 +2,7 @@ import pygame
 from counter import Counter
 from utility import check_direction, ROWS, COLS
 
-CELL_SIZE = 100  # Size for each cell
+CELL_SIZE = 100
 
 
 class Board:
@@ -10,7 +10,6 @@ class Board:
         self.grid = [[0] * COLS for _ in range(ROWS)]
         self.counters = {}
 
-        # Load and scale images from 256x256 to CELL_SIZE
         cell_img = pygame.image.load("assets/Cell.png")
         red_img = pygame.image.load("assets/RedCounter.png")
         yellow_img = pygame.image.load("assets/YellowCounter.png")
@@ -37,7 +36,7 @@ class Board:
         for r in range(ROWS - 1, -1, -1):
             if self.grid[r][col] == 0:
                 self.grid[r][col] = player
-                img = self.red if player == -1 else self.yellow
+                img = self.red if player == 1 else self.yellow
                 self.counters[(r, col)] = Counter(player, r, col, img)
                 return r, col
         return None
@@ -69,6 +68,6 @@ class Board:
         new_board.grid = [row[:] for row in self.grid]
         new_board.counters = {}
         for (r, c), counter in self.counters.items():
-            img = new_board.red if counter.player == -1 else new_board.yellow
+            img = new_board.red if counter.player == 1 else new_board.yellow
             new_board.counters[(r, c)] = Counter(counter.player, r, c, img)
         return new_board
